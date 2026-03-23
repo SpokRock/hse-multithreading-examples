@@ -1,8 +1,12 @@
+# hw2
+
 ## BufferedChannel
 
-.\build\buffered_channel\Debug\buffered_channel_test.exe
+Команда запуска тестов:
 
-Output:
+.\build-buffered\Debug\buffered_channel_test.exe
+
+Результат:
 
 [==========] Running 6 tests from 1 test suite.
 [ RUN      ] Correctness.Simple
@@ -21,12 +25,36 @@ Output:
 [  PASSED  ] 6 tests.
 
 
+Команда запуска benchmark:
+
+.\build-buffered\Debug\buffered_channel_benchmark.exe
+
+Результат:
+
+2026-03-23T17:20:15+03:00
+Running C:\Users\asus\VSCodeProjects\hse-multithreading-examples\build-buffered\Debug\buffered_channel_benchmark.exe
+Run on (8 X 2803 MHz CPU s)
+CPU Caches:
+  L1 Data 48 KiB (x4)
+  L1 Instruction 32 KiB (x4)
+  L2 Unified 1280 KiB (x4)
+  L3 Unified 12288 KiB (x1)
+***WARNING*** Library was built as DEBUG. Timings may be affected.
+-----------------------------------------------------------------------------------------------
+Benchmark                                                     Time             CPU   Iterations
+-----------------------------------------------------------------------------------------------
+Run/2/2/6/min_time:0.100/process_time/real_time            1553 ms         7062 ms            1
+Run/10/4/4/min_time:0.100/process_time/real_time            836 ms         4016 ms            1
+Run/100000/4/4/min_time:0.100/process_time/real_time        428 ms         2797 ms            1
+
 
 ## UnbufferedChannel
 
-.\build\unbuffered_channel\Debug\unbuffered_channel_test.exe
+Команда запуска тестов:
 
-Output:
+.\build-unbuffered\Debug\unbuffered_channel_test.exe
+
+Результат:
 
 [==========] Running 6 tests from 2 test suites.
 

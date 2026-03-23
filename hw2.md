@@ -46,30 +46,3 @@ Benchmark                                                     Time             C
 Run/2/2/6/min_time:0.100/process_time/real_time            1553 ms         7062 ms            1
 Run/10/4/4/min_time:0.100/process_time/real_time            836 ms         4016 ms            1
 Run/100000/4/4/min_time:0.100/process_time/real_time        428 ms         2797 ms            1
-
-
-## UnbufferedChannel
-
-Команда запуска тестов:
-
-.\build-unbuffered\Debug\unbuffered_channel_test.exe
-
-Результат:
-
-[==========] Running 6 tests from 2 test suites.
-
-[ RUN      ] Correctness.Simple
-[       OK ] Correctness.Simple
-[ RUN      ] Correctness.Senders
-[       OK ] Correctness.Senders
-[ RUN      ] Correctness.Receivers
-[       OK ] Correctness.Receivers
-[ RUN      ] Correctness.BigBuf
-[       OK ] Correctness.BigBuf
-
-[ RUN      ] Block.Sender
-[       OK ] Block.Sender
-[ RUN      ] Block.Receiver
-[       OK ] Block.Receiver
-
-[  PASSED  ] 6 tests.

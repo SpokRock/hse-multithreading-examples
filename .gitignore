@@ -1,3 +1,26 @@
-build
-.cache
-.vscode
+# Build outputs
+build/
+build-*/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+compile_commands.json
+CTestTestfile.cmake
+Testing/
+
+# Binaries and generated files
+*.o
+*.obj
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+
+# Editor and tooling state
+.cache/
+.vscode/
+.idea/
+*.swp
+.DS_Store

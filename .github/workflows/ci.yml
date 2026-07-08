@@ -24,3 +24,6 @@ jobs:
 
       - name: Build root examples
         run: cmake --build build -j2
+
+      - name: Run root tests
+        run: ctest --test-dir build --output-on-failure

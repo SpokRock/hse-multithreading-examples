@@ -143,4 +143,6 @@ Planned improvements are intentionally modest and education-focused:
 
 ## License
 
-The original code and documentation in this repository are licensed under the [MIT License](LICENSE), unless a file explicitly states otherwise. If external course materials or third-party snippets are added later, they should keep their original copyright and license notices.
+The original code and documentation created for this repository are licensed under the [MIT License](LICENSE), unless a file explicitly states otherwise.
+
+Some task statements, tests, or educational materials may be explicitly marked in their files as adapted from external sources. For example, `tasks/synchronization_primitives/task.md` acknowledges materials from `https://gitlab.com/hse-cpp/cpp-advanced-hse`. Those externally sourced materials are not automatically relicensed under this repository's MIT License; they remain under the terms of their original rightsholders and source licenses.

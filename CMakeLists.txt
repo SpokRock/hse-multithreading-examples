@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.25)
 
-project(lecture_examples LANGUAGES CXX)
+project(hse_multithreading_examples LANGUAGES CXX)
+
+option(HSE_BUILD_STDEXEC "Build examples that fetch and use NVIDIA stdexec" OFF)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

@@ -7,7 +7,7 @@
 
 int main(int argc, char* argv[]) {
     const char* shm_name = "/hw4_queue";
-    std::size_t queue_size = hw4::get_queue_memory_size();
+    std::size_t queue_size = 8192;
 
     if (argc > 1) {
         shm_name = argv[1];
@@ -15,7 +15,7 @@ int main(int argc, char* argv[]) {
 
     if (argc > 2) {
         unsigned long long parsed_size = std::strtoull(argv[2], nullptr, 10);
-        if (parsed_size < hw4::get_queue_memory_size()) {
+        if (parsed_size < hw4::get_min_queue_memory_size() + 128) {
             std::cerr << "Queue size is too small\n";
             return 1;
         }
@@ -33,10 +33,10 @@ int main(int argc, char* argv[]) {
     auto* queue = static_cast<hw4::SharedQueueLayout*>(region.addr);
 
     if (was_created) {
-        hw4::init_queue(queue);
+        hw4::init_queue(queue, queue_size);
     }
 
-    if (!hw4::is_queue_valid(queue)) {
+    if (!hw4::is_queue_valid(queue, queue_size)) {
         std::cerr << "Queue is not valid\n";
         hw4::close_shared_memory(&region);
         return 1;

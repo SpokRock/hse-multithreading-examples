@@ -10,29 +10,34 @@ cmake --build .
 ## Build result
 
 [ 12%] Building CXX object CMakeFiles/producer_hw4.dir/producer_hw4.cpp.o
-[ 25%] Linking CXX executable producer_hw4
+[ 25%] Building CXX object CMakeFiles/producer_hw4.dir/ipc_queue.cpp.o
+[ 37%] Building CXX object CMakeFiles/producer_hw4.dir/shm_utils.cpp.o
+[ 50%] Linking CXX executable producer_hw4
 [ 50%] Built target producer_hw4
 [ 62%] Building CXX object CMakeFiles/consumer_hw4.dir/consumer_hw4.cpp.o
-[ 75%] Linking CXX executable consumer_hw4
+[ 75%] Building CXX object CMakeFiles/consumer_hw4.dir/ipc_queue.cpp.o
+[ 87%] Building CXX object CMakeFiles/consumer_hw4.dir/shm_utils.cpp.o
+[100%] Linking CXX executable consumer_hw4
 [100%] Built target consumer_hw4
+
 
 ## Producer run
 
 ## Command * 3:
 
-./producer_hw4 /hw4_queue 4320
+./producer_hw4 /hw4_queue_test 5000
 
 ## Output:
 
-Shared memory created and queue initialized
+hared memory opened successfully
 Pushed NUMBER message: 12345
 Pushed TEXT message: hello from producer
-Queue size: 4320 bytes
+Queue size: 5000 bytes
 
 
 ## Consumer run
 
-./consumer_hw4
+./consumer_hw4 /hw4_queue_test 5000
 
 ## Output:
 
@@ -46,8 +51,9 @@ Shared memory opened successfully
 Queue is valid
 Received TEXT messages: 3
 Skipped messages: 3
-Queue size: 4320 bytes
+Queue size: 5000 bytes
 Shared memory cleaned up
+
 
 
 

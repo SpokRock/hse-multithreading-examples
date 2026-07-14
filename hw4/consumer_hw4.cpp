@@ -3,10 +3,11 @@
 
 #include <cstdlib>
 #include <iostream>
+#include <vector>
 
 int main(int argc, char* argv[]) {
     const char* shm_name = "/hw4_queue";
-    std::size_t queue_size = hw4::get_queue_memory_size();
+    std::size_t queue_size = 8192;
 
     if (argc > 1) {
         shm_name = argv[1];
@@ -14,7 +15,7 @@ int main(int argc, char* argv[]) {
 
     if (argc > 2) {
         unsigned long long parsed_size = std::strtoull(argv[2], nullptr, 10);
-        if (parsed_size < hw4::get_queue_memory_size()) {
+        if (parsed_size < hw4::get_min_queue_memory_size() + 128) {
             std::cerr << "Queue size is too small\n";
             return 1;
         }
@@ -30,34 +31,39 @@ int main(int argc, char* argv[]) {
 
     auto* queue = static_cast<hw4::SharedQueueLayout*>(region.addr);
 
-    if (!hw4::is_queue_valid(queue)) {
+    if (!hw4::is_queue_valid(queue, queue_size)) {
         std::cerr << "Queue is not valid\n";
         hw4::close_shared_memory(&region);
         return 1;
     }
 
-    char buffer[hw4::MAX_PAYLOAD_SIZE] = {};
+    std::vector<char> payload;
     hw4::MessageHeader header{};
 
     int received_text_count = 0;
     int skipped_count = 0;
 
     while (true) {
-        std::size_t before = queue->read_index.load(std::memory_order_relaxed);
+        std::uint64_t before = queue->tail.load(std::memory_order_relaxed);
 
         bool popped = hw4::try_pop_message(
             queue,
             hw4::MessageType::TEXT,
-            buffer,
-            sizeof(buffer),
+            &payload,
             &header
         );
 
-        std::size_t after = queue->read_index.load(std::memory_order_relaxed);
+        std::uint64_t after = queue->tail.load(std::memory_order_relaxed);
 
         if (popped) {
             ++received_text_count;
-            std::cout << "Received TEXT message: " << buffer << "\n";
+
+            if (!payload.empty()) {
+                std::cout << "Received TEXT message: " << payload.data() << "\n";
+            } else {
+                std::cout << "Received empty TEXT message\n";
+            }
+
             continue;
         }
 

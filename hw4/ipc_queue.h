@@ -4,14 +4,12 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <vector>
 
 namespace hw4 {
 
 const std::uint32_t PROTOCOL_MAGIC = 0x48573431;
 const std::uint32_t PROTOCOL_VERSION = 1;
-
-const std::size_t QUEUE_CAPACITY = 16;
-const std::size_t MAX_PAYLOAD_SIZE = 256;
 
 enum class MessageType : std::uint32_t {
     UNKNOWN = 0,
@@ -27,34 +25,25 @@ struct MessageHeader {
 struct QueueMeta {
     std::uint32_t magic;
     std::uint32_t version;
-    std::uint32_t capacity;
-    std::uint32_t max_payload_size;
-};
-
-enum class SlotState : std::uint32_t {
-    EMPTY = 0,
-    WRITING = 1,
-    READY = 2
-};
-
-struct MessageSlot {
-    std::atomic<std::uint32_t> state;
-    MessageHeader header;
-    char payload[MAX_PAYLOAD_SIZE];
+    std::uint64_t shm_size;
+    std::uint64_t data_capacity;
 };
 
 struct SharedQueueLayout {
     QueueMeta meta;
-    std::atomic<std::size_t> write_index;
-    std::atomic<std::size_t> read_index;
-    MessageSlot slots[QUEUE_CAPACITY];
+
+    alignas(64) std::atomic<std::uint64_t> reserve_head;
+    alignas(64) std::atomic<std::uint64_t> publish_head;
+    alignas(64) std::atomic<std::uint64_t> tail;
+
+    alignas(64) unsigned char data[1];
 };
 
-void init_queue(SharedQueueLayout* queue);
-bool is_queue_valid(const SharedQueueLayout* queue);
+std::size_t get_min_queue_memory_size();
+std::size_t get_data_capacity(std::size_t shm_size);
 
-MessageSlot* get_slot(SharedQueueLayout* queue, std::size_t index);
-const MessageSlot* get_slot(const SharedQueueLayout* queue, std::size_t index);
+void init_queue(SharedQueueLayout* queue, std::size_t shm_size);
+bool is_queue_valid(const SharedQueueLayout* queue, std::size_t shm_size);
 
 bool try_push_message(SharedQueueLayout* queue,
                       MessageType type,
@@ -63,8 +52,7 @@ bool try_push_message(SharedQueueLayout* queue,
 
 bool try_pop_message(SharedQueueLayout* queue,
                      MessageType expected_type,
-                     char* out_buffer,
-                     std::size_t buffer_size,
+                     std::vector<char>* out_data,
                      MessageHeader* out_header);
 
 }

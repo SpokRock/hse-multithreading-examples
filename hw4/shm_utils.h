@@ -13,16 +13,15 @@ struct SharedMemoryRegion {
 
 bool create_shared_memory(const char* name, std::size_t size, SharedMemoryRegion* region);
 bool open_shared_memory(const char* name, std::size_t size, SharedMemoryRegion* region);
-void close_shared_memory(SharedMemoryRegion* region);
-bool unlink_shared_memory(const char* name);
-
-std::size_t get_queue_memory_size();
 
 bool create_or_open_shared_memory(const char* name,
                                   std::size_t size,
                                   SharedMemoryRegion* region,
                                   bool* was_created);
-                                  
+
+void close_shared_memory(SharedMemoryRegion* region);
+bool unlink_shared_memory(const char* name);
+
 }
 
 #endif

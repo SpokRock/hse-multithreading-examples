@@ -1,27 +1,89 @@
 #include "ipc_queue.h"
 
+#include <algorithm>
 #include <cstring>
+#include <thread>
 
 namespace hw4 {
 
-void init_queue(SharedQueueLayout* queue) {
-    queue->meta.magic = PROTOCOL_MAGIC;
-    queue->meta.version = PROTOCOL_VERSION;
-    queue->meta.capacity = QUEUE_CAPACITY;
-    queue->meta.max_payload_size = MAX_PAYLOAD_SIZE;
+namespace {
 
-    queue->write_index.store(0);
-    queue->read_index.store(0);
+std::size_t buffer_offset() {
+    return offsetof(SharedQueueLayout, data);
+}
 
-    for (std::size_t i = 0; i < QUEUE_CAPACITY; ++i) {
-        queue->slots[i].state.store(static_cast<std::uint32_t>(SlotState::EMPTY));
-        queue->slots[i].header.type = static_cast<std::uint32_t>(MessageType::UNKNOWN);
-        queue->slots[i].header.length = 0;
-        std::memset(queue->slots[i].payload, 0, MAX_PAYLOAD_SIZE);
+void write_ring_bytes(unsigned char* buffer,
+                      std::size_t capacity,
+                      std::uint64_t position,
+                      const void* src,
+                      std::size_t length) {
+    if (length == 0) {
+        return;
+    }
+
+    std::size_t start = static_cast<std::size_t>(position % capacity);
+    std::size_t first_part = std::min(length, capacity - start);
+
+    std::memcpy(buffer + start, src, first_part);
+
+    if (first_part < length) {
+        std::memcpy(buffer, static_cast<const unsigned char*>(src) + first_part, length - first_part);
     }
 }
 
-bool is_queue_valid(const SharedQueueLayout* queue) {
+void read_ring_bytes(const unsigned char* buffer,
+                     std::size_t capacity,
+                     std::uint64_t position,
+                     void* dst,
+                     std::size_t length) {
+    if (length == 0) {
+        return;
+    }
+
+    std::size_t start = static_cast<std::size_t>(position % capacity);
+    std::size_t first_part = std::min(length, capacity - start);
+
+    std::memcpy(dst, buffer + start, first_part);
+
+    if (first_part < length) {
+        std::memcpy(static_cast<unsigned char*>(dst) + first_part, buffer, length - first_part);
+    }
+}
+
+} // namespace
+
+std::size_t get_min_queue_memory_size() {
+    return buffer_offset();
+}
+
+std::size_t get_data_capacity(std::size_t shm_size) {
+    if (shm_size <= get_min_queue_memory_size()) {
+        return 0;
+    }
+
+    return shm_size - get_min_queue_memory_size();
+}
+
+void init_queue(SharedQueueLayout* queue, std::size_t shm_size) {
+    std::size_t capacity = get_data_capacity(shm_size);
+
+    queue->meta.magic = PROTOCOL_MAGIC;
+    queue->meta.version = PROTOCOL_VERSION;
+    queue->meta.shm_size = shm_size;
+    queue->meta.data_capacity = capacity;
+
+    queue->reserve_head.store(0, std::memory_order_relaxed);
+    queue->publish_head.store(0, std::memory_order_relaxed);
+    queue->tail.store(0, std::memory_order_relaxed);
+
+    std::memset(queue->data, 0, capacity);
+}
+
+bool is_queue_valid(const SharedQueueLayout* queue, std::size_t shm_size) {
+    if (queue == nullptr) {
+        return false;
+    }
+
     if (queue->meta.magic != PROTOCOL_MAGIC) {
         return false;
     }
@@ -30,104 +92,124 @@ bool is_queue_valid(const SharedQueueLayout* queue) {
         return false;
     }
 
-    if (queue->meta.capacity != QUEUE_CAPACITY) {
+    if (queue->meta.shm_size != shm_size) {
         return false;
     }
 
-    if (queue->meta.max_payload_size != MAX_PAYLOAD_SIZE) {
+    if (queue->meta.data_capacity != get_data_capacity(shm_size)) {
         return false;
     }
 
     return true;
-}
-
-MessageSlot* get_slot(SharedQueueLayout* queue, std::size_t index) {
-    return &queue->slots[index % QUEUE_CAPACITY];
-}
-
-const MessageSlot* get_slot(const SharedQueueLayout* queue, std::size_t index) {
-    return &queue->slots[index % QUEUE_CAPACITY];
 }
 
 bool try_push_message(SharedQueueLayout* queue,
                       MessageType type,
                       const void* data,
                       std::size_t length) {
-    if (queue == nullptr || data == nullptr) {
+    if (queue == nullptr) {
         return false;
     }
 
-    if (length > MAX_PAYLOAD_SIZE) {
+    if (length > 0 && data == nullptr) {
         return false;
     }
 
-    std::size_t index = queue->write_index.fetch_add(1, std::memory_order_relaxed);
-    MessageSlot* slot = get_slot(queue, index);
+    const std::size_t capacity = static_cast<std::size_t>(queue->meta.data_capacity);
+    const std::size_t total_size = sizeof(MessageHeader) + length;
 
-    std::uint32_t expected = static_cast<std::uint32_t>(SlotState::EMPTY);
-    if (!slot->state.compare_exchange_strong(
-            expected,
-            static_cast<std::uint32_t>(SlotState::WRITING),
-            std::memory_order_acq_rel,
-            std::memory_order_acquire)) {
+    if (capacity == 0 || total_size > capacity) {
         return false;
     }
 
-    slot->header.type = static_cast<std::uint32_t>(type);
-    slot->header.length = static_cast<std::uint32_t>(length);
+    std::uint64_t start_position = 0;
 
-    if (length > 0) {
-        std::memcpy(slot->payload, data, length);
+    while (true) {
+        std::uint64_t tail_snapshot = queue->tail.load(std::memory_order_acquire);
+        std::uint64_t reserve_snapshot = queue->reserve_head.load(std::memory_order_relaxed);
+
+        std::uint64_t used = reserve_snapshot - tail_snapshot;
+        if (used + total_size > capacity) {
+            return false;
+        }
+
+        std::uint64_t next_reserve = reserve_snapshot + total_size;
+
+        if (queue->reserve_head.compare_exchange_weak(
+                reserve_snapshot,
+                next_reserve,
+                std::memory_order_acq_rel,
+                std::memory_order_relaxed)) {
+            start_position = reserve_snapshot;
+            break;
+        }
     }
 
-    slot->state.store(static_cast<std::uint32_t>(SlotState::READY),
-                      std::memory_order_release);
+    MessageHeader header{};
+    header.type = static_cast<std::uint32_t>(type);
+    header.length = static_cast<std::uint32_t>(length);
 
+    write_ring_bytes(queue->data, capacity, start_position, &header, sizeof(header));
+    write_ring_bytes(queue->data, capacity, start_position + sizeof(header), data, length);
+
+    while (queue->publish_head.load(std::memory_order_acquire) != start_position) {
+        std::this_thread::yield();
+    }
+
+    queue->publish_head.store(start_position + total_size, std::memory_order_release);
     return true;
 }
 
 bool try_pop_message(SharedQueueLayout* queue,
                      MessageType expected_type,
-                     char* out_buffer,
-                     std::size_t buffer_size,
+                     std::vector<char>* out_data,
                      MessageHeader* out_header) {
-    if (queue == nullptr || out_buffer == nullptr || out_header == nullptr) {
+    if (queue == nullptr || out_data == nullptr || out_header == nullptr) {
         return false;
     }
 
-    std::size_t index = queue->read_index.load(std::memory_order_relaxed);
-    MessageSlot* slot = get_slot(queue, index);
-
-    std::uint32_t state = slot->state.load(std::memory_order_acquire);
-    if (state != static_cast<std::uint32_t>(SlotState::READY)) {
+    const std::size_t capacity = static_cast<std::size_t>(queue->meta.data_capacity);
+    if (capacity == 0) {
         return false;
     }
 
-    MessageHeader header = slot->header;
+    std::uint64_t tail_snapshot = queue->tail.load(std::memory_order_relaxed);
+    std::uint64_t published_snapshot = queue->publish_head.load(std::memory_order_acquire);
 
-    if (header.length > MAX_PAYLOAD_SIZE) {
+    if (published_snapshot - tail_snapshot < sizeof(MessageHeader)) {
         return false;
     }
 
-    if (header.length > buffer_size) {
+    MessageHeader header{};
+    read_ring_bytes(queue->data, capacity, tail_snapshot, &header, sizeof(header));
+
+    std::size_t total_size = sizeof(MessageHeader) + header.length;
+
+    if (header.length > capacity) {
+        return false;
+    }
+
+    if (published_snapshot - tail_snapshot < total_size) {
         return false;
     }
 
     if (header.type == static_cast<std::uint32_t>(expected_type)) {
+        out_data->resize(header.length);
+
         if (header.length > 0) {
-            std::memcpy(out_buffer, slot->payload, header.length);
+            read_ring_bytes(
+                queue->data,
+                capacity,
+                tail_snapshot + sizeof(MessageHeader),
+                out_data->data(),
+                header.length
+            );
         }
+
         *out_header = header;
     }
 
-    slot->header.type = static_cast<std::uint32_t>(MessageType::UNKNOWN);
-    slot->header.length = 0;
-    std::memset(slot->payload, 0, MAX_PAYLOAD_SIZE);
-
-    slot->state.store(static_cast<std::uint32_t>(SlotState::EMPTY),
-                      std::memory_order_release);
-
-    queue->read_index.store(index + 1, std::memory_order_relaxed);
+    queue->tail.store(tail_snapshot + total_size, std::memory_order_release);
 
     if (header.type != static_cast<std::uint32_t>(expected_type)) {
         return false;
